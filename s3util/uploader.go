@@ -99,7 +99,21 @@ func newUploader(url string, h http.Header, c *Config) (u *uploader, err error) 
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == http.StatusTemporaryRedirect {
+		// TODO follow multiple redirects
+		newLocationURL, err := resp.Location()
+		if err != nil {
+			return nil, err
+		}
+		r.URL = newLocationURL
+		u.s3.Sign(r, u.keys)
+		resp, err = u.client.Do(r)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+	}
+	if resp.StatusCode != http.StatusOK {
 		return nil, newRespError(resp)
 	}
 	err = xml.NewDecoder(resp.Body).Decode(u)
